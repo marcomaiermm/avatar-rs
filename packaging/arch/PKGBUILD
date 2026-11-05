@@ -1,0 +1,53 @@
+# Maintainer: Marco Maier <59606979+marcomaiermm@users.noreply.github.com>
+pkgname=avatar-rs
+pkgver=0.1.0 # x-release-please-version
+pkgrel=1
+pkgdesc='Face-tracked 3D stream avatar with your real eyes and mouth, for OBS'
+arch=('x86_64')
+url='https://github.com/marcomaiermm/avatar-rs'
+license=('PolyForm-Noncommercial-1.0.0')
+depends=('alsa-lib' 'gcc-libs' 'glibc' 'libxkbcommon' 'systemd-libs' 'vulkan-icd-loader' 'wayland')
+makedepends=('cargo' 'clang' 'git' 'nasm')
+optdepends=(
+  'blender: import .blend, .fbx, .obj, .stl, .ply, .usd and .abc figures'
+  'xdg-desktop-portal: file dialog for the import'
+  'v4l-utils: webcam settings such as exposure_dynamic_framerate'
+  'libxcursor: X11 session'
+  'libxi: X11 session'
+  'libxrandr: X11 session'
+)
+# makepkg's LTO puts GCC bitcode into mozjpeg's objects, which Rust's linker cannot read.
+options=('!lto')
+source=("git+$url.git#tag=v$pkgver"
+        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task')
+sha256sums=('SKIP'
+            '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff')
+
+prepare() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable CARGO_TARGET_DIR=target AVATAR_FACE_LANDMARKER="$srcdir/face_landmarker.task"
+  # makepkg's RUSTFLAGS replace .cargo/config.toml's; built where it runs, so native.
+  export RUSTFLAGS="$RUSTFLAGS -C target-cpu=native"
+  cargo build --frozen --release
+}
+
+check() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable CARGO_TARGET_DIR=target AVATAR_FACE_LANDMARKER="$srcdir/face_landmarker.task" RUSTFLAGS="$RUSTFLAGS -C target-cpu=native"
+  cargo test --frozen --release
+}
+
+package() {
+  cd "$pkgname"
+  install -Dm755 target/release/avatar-rs -t "$pkgdir/usr/bin"
+  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$pkgname"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+  install -Dm644 packaging/linux/avatar-rs.desktop -t "$pkgdir/usr/share/applications"
+  install -Dm644 packaging/linux/avatar-rs.svg -t "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+}

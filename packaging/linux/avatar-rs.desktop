@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=avatar-rs
+GenericName=Stream Avatar
+Comment=Face-tracked 3D stream avatar with your real eyes and mouth, for OBS
+Comment[de]=3D-Stream-Avatar mit Face-Tracking und deinen echten Augen und Mund, für OBS
+Exec=avatar-rs
+Icon=avatar-rs
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=avatar;vtuber;webcam;obs;stream;face;tracking;
+StartupWMClass=avatar-rs
+Actions=edit;mouse;
+
+[Desktop Action edit]
+Name=Open with settings
+Name[de]=Mit Einstellungen öffnen
+Exec=avatar-rs --edit
+
+[Desktop Action mouse]
+Name=Mouse overlay
+Name[de]=Maus-Overlay
+Exec=avatar-rs mouse
