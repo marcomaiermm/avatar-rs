@@ -1,6 +1,6 @@
 [package]
 name = "avatar-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Face-tracked 3D stream avatar with your real eyes and mouth, for OBS"
 repository = "https://github.com/marcomaiermm/avatar-rs"
