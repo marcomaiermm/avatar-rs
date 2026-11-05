@@ -1,0 +1,21 @@
+name: PR title
+
+# Squash merges make the PR title the commit on main, and release-please reads it for the version and changelog.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          re='^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\([a-z0-9/_-]+\))?!?: .+'
+          if [[ ! "$TITLE" =~ $re ]]; then
+            echo "::error::PR title must be a Conventional Commit, e.g. 'feat(import): read .3mf' or 'fix(tracker): keep the face when blinking'. Got: $TITLE"
+            exit 1
+          fi

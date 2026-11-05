@@ -1,0 +1,41 @@
+[package]
+name = "avatar-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Face-tracked 3D stream avatar with your real eyes and mouth, for OBS"
+repository = "https://github.com/marcomaiermm/avatar-rs"
+rust-version = "1.90"
+
+[dependencies]
+bevy = "0.17.3"
+bevy_egui = "0.38.1"
+tract-tflite = "0.22.5"
+nokhwa = { version = "0.10", features = ["input-native"] }
+tiny-skia = "0.11"
+# Already under nokhwa: MJPEG decoded only where the face is (src/jpeg.rs).
+mozjpeg-sys = { version = "2.2", default-features = false, features = ["unwinding"] }
+# Only for AVATAR_RECORD / AVATAR_REPLAY (camera frames as JPEG).
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+tungstenite = "0.29"
+sha2 = "0.10"
+base64 = "0.22"
+rfd = "0.17"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+evdev = "0.13"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+global-hotkey = "0.7"
+
+[patch.crates-io]
+# Upstream tract-tflite lacks DEQUANTIZE and PRELU, both used by MediaPipe's face models.
+tract-tflite = { path = "vendor/tract-tflite" }
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+strip = true
