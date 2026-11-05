@@ -576,10 +576,19 @@ fn fit_glb(
     children: Query<&Children>,
     mut nodes: Query<(&mut Transform, Option<&Mesh3d>)>,
     meshes: Res<Assets<Mesh>>,
+    parts: Query<&MeshMaterial3d<StandardMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let (mut lo, mut hi) = (Vec3::MAX, Vec3::MIN);
     let found = meshes_under(ev.entity, false, &children, |e| nodes.get(e).ok().map(|(t, m)| (t.to_matrix(), m.map(|m| m.id()))));
-    for (m, id, _) in found {
+    for (m, id, e) in found {
+        // ponytail: Bevy 0.17 renders KHR_materials_anisotropy as white/black noise (Blender 5
+        // exports it for satin, tangents or not). Off until a Bevy update renders it right.
+        if let Ok(part) = parts.get(e)
+            && materials.get(&part.0).is_some_and(|m| m.anisotropy_strength != 0.0)
+        {
+            materials.get_mut(&part.0).unwrap().anisotropy_strength = 0.0;
+        }
         let Some(aabb) = meshes.get(id).and_then(|m| m.compute_aabb()) else { continue };
         for i in 0..8 {
             let s = Vec3::new([-1.0, 1.0][i & 1], [-1.0, 1.0][(i >> 1) & 1], [-1.0, 1.0][i >> 2]);

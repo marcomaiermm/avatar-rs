@@ -21,7 +21,9 @@ if ext != "blend":
         "ply": bpy.ops.wm.ply_import,
         "abc": bpy.ops.wm.alembic_import,
     }.get(ext, bpy.ops.wm.usd_import)(filepath=src)
-bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_apply=True)
+# Only what renders: hidden helpers (a reference sphere in a disabled collection) would
+# otherwise be exported, take the face patches and skew the fit.
+bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_apply=True, use_renderable=True)
 "#;
 
 pub fn models_dir() -> PathBuf {
