@@ -26,7 +26,7 @@ avatar-rs mouse              mouse overlay (needs the input-overlay OBS plugin)
   --serve          OBS browser source with transparency at http://localhost:4460/
   --model FILE     your figure: .glb .gltf .blend .fbx .obj .stl .ply .usd* .abc
                    (all but glTF need Blender), or sphere
-  --camera N       webcam index (default 0)
+  --camera N       webcam index (default: the one picked in the panel)
   --size WxH       window size (default 512x512)
 ";
 
@@ -38,13 +38,14 @@ pub struct Args {
     pub serve: bool,
     /// The figure to load (a glTF file or "sphere"); None = the last one from the panel.
     pub model: Option<String>,
-    pub camera: u32,
+    /// Webcam index; None = the one picked in the panel.
+    pub camera: Option<u32>,
     pub width: u32,
     pub height: u32,
 }
 
 fn parse_args() -> Result<(bool, Args), String> {
-    let mut args = Args { edit: false, debug: false, mesh: false, serve: false, model: None, camera: 0, width: 512, height: 512 };
+    let mut args = Args { edit: false, debug: false, mesh: false, serve: false, model: None, camera: None, width: 512, height: 512 };
     let mut mouse = false;
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -62,7 +63,7 @@ fn parse_args() -> Result<(bool, Args), String> {
                     file => import::import(file.as_ref())?.to_string_lossy().into_owned(),
                 });
             }
-            "--camera" => args.camera = value()?.parse().map_err(|_| "--camera needs a number")?,
+            "--camera" => args.camera = Some(value()?.parse().map_err(|_| "--camera needs a number")?),
             "--size" => {
                 let v = value()?;
                 let (w, h) = v.split_once('x').ok_or("--size is WxH")?;

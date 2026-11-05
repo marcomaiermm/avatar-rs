@@ -77,6 +77,17 @@ pub fn spawn(camera: u32, full_frames: bool) -> Shared {
     shared
 }
 
+/// Webcams to pick from: (index, name). On Linux only capture nodes: a UVC camera also lists
+/// a metadata node under the same name, which delivers no picture.
+pub fn cameras() -> Vec<(u32, String)> {
+    nokhwa::query(nokhwa::utils::ApiBackend::Auto)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|c| Some((c.index().as_index().ok()?, c.human_name())))
+        .filter(|(i, _)| !cfg!(target_os = "linux") || std::fs::read_to_string(format!("/sys/class/video4linux/video{i}/index")).is_ok_and(|s| s.trim() == "0"))
+        .collect()
+}
+
 type Plan = TypedRunnableModel<TypedModel>;
 
 fn load(bytes: &[u8]) -> TractResult<Plan> {
@@ -110,10 +121,18 @@ fn run(camera: u32, full_frames: bool, shared: &Shared) -> Result<(), String> {
         }
         let record = std::env::var_os("AVATAR_RECORD").map(|dir| recorder(dir.into()));
         let start = std::time::Instant::now();
+        // One tracker at a time on the webcams: after picking another camera (or the same one
+        // again) the new tracker waits here until the old one has let go of its camera.
+        static IN_USE: Mutex<()> = Mutex::new(());
+        let _in_use = IN_USE.lock().unwrap_or_else(|e| e.into_inner());
         match open_camera(camera) {
             Ok(mut cam) => {
                 let (mut decoded, mut damaged) = (std::time::Instant::now() - SEARCH_IDLE, 0);
                 loop {
+                    // The tracker is gone (another camera picked): release this one.
+                    if Arc::strong_count(&writer) == 1 {
+                        return;
+                    }
                     let buf = match cam.frame() {
                         Ok(b) => b,
                         Err(e) => return publish(Err(format!("Webcam gestoppt: {e}"))),
@@ -171,6 +190,11 @@ fn run(camera: u32, full_frames: bool, shared: &Shared) -> Result<(), String> {
             let mut guard = slot.1.wait_while(slot.0.lock().unwrap(), |f| f.is_none()).unwrap();
             guard.take().unwrap()?
         });
+        // Nobody holds the tracker any more (another camera picked): stop, which also stops
+        // the capture thread.
+        if Arc::strong_count(shared) == 1 {
+            return Ok(());
+        }
         if !shared.lock().unwrap().running {
             let mut st = shared.lock().unwrap();
             st.status = "Läuft".into();
@@ -834,4 +858,36 @@ fn webcam() {
     deltas.sort_by(f32::total_cmp);
     let pct = |p: f32| deltas.get((deltas.len() as f32 * p) as usize).copied().unwrap_or(f32::NAN);
     println!("{frames} frames in 10 s, face in {faces} ({steep} by optical flow); jitter per frame: median {:.2} deg, p90 {:.2} deg", pct(0.5), pct(0.9));
+}
+
+/// Picking another camera drops the tracker: it must let go of its webcam so the next one
+/// (here the same camera again) gets frames. Needs a webcam: `cargo test -- --ignored`.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn switching_camera_releases_it() {
+    let cams = cameras();
+    println!("{cams:?}");
+    let first = cams.first().expect("no webcam").0;
+    let running = |shared: &Shared| {
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs() < 15 {
+            let st = shared.lock().unwrap();
+            assert!(!st.error, "{}", st.status);
+            if st.latest.is_some() {
+                return;
+            }
+            drop(st);
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        panic!("no frame within 15 s");
+    };
+    let a = spawn(first, false);
+    running(&a);
+    let weak = Arc::downgrade(&a);
+    drop(a);
+    let b = spawn(first, false);
+    running(&b);
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    assert!(weak.upgrade().is_none(), "the old tracker thread is still running");
 }

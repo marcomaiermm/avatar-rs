@@ -27,6 +27,8 @@ pub struct Avatar {
     pub config: Config,
     pub model: String,
     pub panel_open: bool,
+    /// Webcam index the tracker reads.
+    camera: u32,
     tracker: Option<tracker::Shared>,
     smoothed: Quat,
     /// Smoothed placement from head position/distance: (x, y) offset in world units, scale.
@@ -381,7 +383,9 @@ pub fn plugin(app: &mut App) {
 pub fn new_state(args: Args, mut config: Config) -> Avatar {
     config.serve |= args.serve;
     // Debug mode skips the webcam entirely: it only checks the model's composition and turn.
-    let tracker = (!args.debug).then(|| tracker::spawn(args.camera, args.mesh));
+    // `--camera`, else the one picked in the panel (by name), else the first.
+    let camera = args.camera.or_else(|| tracker::cameras().into_iter().find(|c| Some(&c.1) == config.camera.as_ref()).map(|c| c.0)).unwrap_or(0);
+    let tracker = (!args.debug).then(|| tracker::spawn(camera, args.mesh));
     // A remembered figure whose file is gone falls back to the sphere instead of nothing.
     let model = args.model.clone().or(config.model.clone()).filter(|m| m == SPHERE || std::path::Path::new(m).exists()).unwrap_or_else(|| SPHERE.into());
     let args_debug = args.debug;
@@ -390,6 +394,7 @@ pub fn new_state(args: Args, mut config: Config) -> Avatar {
         args,
         config,
         model,
+        camera,
         tracker,
         smoothed: Quat::IDENTITY,
         placed: Vec3::new(0.0, 0.0, 1.0),
@@ -1069,6 +1074,7 @@ fn panel(
     mut unsaved: Local<bool>,
     mut importing: Local<Option<std::sync::mpsc::Receiver<Option<Result<std::path::PathBuf, String>>>>>,
     mut import_error: Local<Option<String>>,
+    mut cameras: Local<Option<Vec<(u32, String)>>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
     // Saved once the mouse is let go, not on every frame of dragging a slider (a file write
@@ -1145,6 +1151,30 @@ fn panel(
         });
         if let Some(e) = import_error.as_ref() {
             ui.label(egui::RichText::new(e).small().color(ERROR));
+        }
+        if !avatar.args.debug {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Kamera").strong());
+                let list = cameras.get_or_insert_with(tracker::cameras);
+                let mut pick = avatar.camera;
+                let name = |i: u32| list.iter().find(|c| c.0 == i).map_or(format!("Kamera {i}"), |c| c.1.clone());
+                let combo = egui::ComboBox::from_id_salt("camera").selected_text(name(pick)).width(200.0).show_ui(ui, |ui| {
+                    for (i, n) in list.iter() {
+                        ui.selectable_value(&mut pick, *i, n);
+                    }
+                });
+                if pick != avatar.camera {
+                    avatar.config.camera = Some(name(pick));
+                    avatar.camera = pick;
+                    // The old tracker stops by itself once dropped and releases its camera.
+                    avatar.tracker = Some(tracker::spawn(pick, avatar.args.mesh));
+                    changed = true;
+                }
+                // Newly plugged-in cameras show up the next time the list is opened.
+                if combo.response.clicked() {
+                    *cameras = Some(tracker::cameras());
+                }
+            });
         }
         ui.horizontal(|ui| {
             let (rect, _) = ui.allocate_exact_size(egui::vec2(8.0, 18.0), egui::Sense::hover());

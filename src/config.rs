@@ -343,6 +343,8 @@ pub struct Config {
     pub model: Option<String>,
     /// Imported figures (glTF files), for the panel's list.
     pub models: Vec<String>,
+    /// The webcam picked in the panel, by name: indices change when cameras are plugged in.
+    pub camera: Option<String>,
     /// Serve the avatar as an OBS browser source (panel switch, or `--serve`).
     pub serve: bool,
     /// Why the file on disk could not be used, for the panel to show. Not saved.
