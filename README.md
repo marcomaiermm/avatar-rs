@@ -78,7 +78,7 @@ avatar-rs --model figure.blend  # import and load your own figure
 avatar-rs --debug               # no webcam, with a painted test face
 avatar-rs --serve               # also as an OBS browser source (http://localhost:4460/)
 avatar-rs --mesh                # debug: camera image with the face mesh next to the avatar
-avatar-rs --camera 1            # another webcam
+avatar-rs --camera 1            # another webcam (or pick it in the panel under "Kamera")
 avatar-rs mouse                 # mouse overlay (input-overlay plugin, ws://localhost:16899)
 ```
 
